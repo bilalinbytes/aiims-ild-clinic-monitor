@@ -1,0 +1,5 @@
+{
+  "name": "AIIMS-ILD Clinic Monitor",
+  "description": "A comprehensive monitoring application for Interstitial Lung Disease patients and doctors, featuring dual dashboards, bilingual support, and trend tracking.",
+  "requestFramePermissions": []
+}
