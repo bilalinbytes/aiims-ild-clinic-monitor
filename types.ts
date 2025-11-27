@@ -37,6 +37,7 @@ export interface HealthLog {
   vas: VasScores;
   side_effects: string[];
   alerts: string[];
+  isEdited?: boolean; // Track if log has been edited
 }
 
 export interface PFTData {

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Patient, HealthLog } from '../types';
 import { KBILD_QUESTIONS, MMRC_GRADES, SIDE_EFFECTS, KBILD_OPTIONS, SYMPTOMS_HINDI } from '../constants';
-import { AlertTriangle, CheckCircle, History, Activity, HeartPulse, Pill, Thermometer, Smile, CloudFog, Calendar, RotateCw, PlusCircle, Clock, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, CheckCircle, History, Activity, HeartPulse, Pill, Thermometer, Smile, CloudFog, Calendar, RotateCw, PlusCircle, Clock, ArrowLeft, TrendingUp, Edit2 } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface PatientDashboardProps {
   patient: Patient;
@@ -20,15 +21,16 @@ const VAS_COLORS: Record<string, { label: string; bg: string }> = {
 };
 
 const THEMES = {
-  VITALS: 'border-pink-400 bg-pink-50',
-  MMRC: 'border-blue-400 bg-blue-50',
-  MEDS: 'border-purple-400 bg-purple-50',
-  VAS: 'border-orange-400 bg-orange-50',
-  KBILD: 'border-yellow-400 bg-yellow-50',
+  VITALS: { border: 'border-pink-400', icon: 'text-pink-500', bg: 'bg-pink-50' },
+  MMRC: { border: 'border-blue-400', icon: 'text-blue-500', bg: 'bg-blue-50' },
+  MEDS: { border: 'border-purple-400', icon: 'text-purple-500', bg: 'bg-purple-50' },
+  VAS: { border: 'border-orange-400', icon: 'text-orange-500', bg: 'bg-orange-50' },
+  KBILD: { border: 'border-yellow-400', icon: 'text-yellow-500', bg: 'bg-yellow-50' },
 };
 
 const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePatient, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'entry' | 'history'>('entry');
+  const [activeTab, setActiveTab] = useState<'entry' | 'history' | 'trends'>('entry');
+  const [selectedSymptomTrend, setSelectedSymptomTrend] = useState<string>('breathlessness');
   
   const getTodayISO = () => {
     const d = new Date();
@@ -74,8 +76,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
 
   const submissionCount = dailyLogs.length;
   const canSubmitMore = submissionCount < 2;
-  
   const [isFormOpen, setIsFormOpen] = useState(true);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
 
   useEffect(() => {
     if (submissionCount === 0) {
@@ -135,10 +137,14 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
     setKbildResponses({});
     setVasScores({ cough: 0, expectoration: 0, breathlessness: 0, chest_pain: 0, hemoptysis: 0, fever: 0, ctd_symptoms: 0 });
     setLogTime(getCurrentTimeForInput());
+    setEditingLogId(null);
   };
 
   const handleVasChange = (key: keyof HealthLog['vas'], value: string) => {
-    setVasScores(prev => ({ ...prev, [key]: Number(value) }));
+    setVasScores(prev => ({
+      ...prev,
+      [key]: Number(value)
+    }));
   };
 
   const handleAddSecondEntry = () => {
@@ -146,11 +152,30 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
     setIsFormOpen(true);
   };
 
-  const currentKbildSum = Object.values(kbildResponses).reduce((a: number, b) => a + (b as number), 0);
+  const handleEditLog = (log: HealthLog) => {
+    if (log.isEdited) {
+      alert("This entry has already been edited once.");
+      return;
+    }
+    setSpo2Rest(String(log.spo2_rest));
+    setSpo2Exertion(String(log.spo2_exertion));
+    setMmrc(log.mmrc_grade);
+    setKbildResponses(log.kbild_responses);
+    setTakenMeds(log.taken_medications);
+    setVasScores(log.vas);
+    setSelectedSideEffects(log.side_effects);
+    
+    setLogTime(getCurrentTimeForInput()); // Keep current time for edit metadata if desired, or parse from log.time
+    
+    setEditingLogId(log.id);
+    setIsFormOpen(true);
+  };
+
+  const currentKbildSum = (Object.values(kbildResponses) as number[]).reduce((a, b) => a + b, 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmitMore) return;
+    if (!canSubmitMore && !editingLogId) return; 
 
     const rest = Number(spo2Rest);
     const exert = Number(spo2Exertion);
@@ -160,8 +185,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
 
     if (Object.keys(kbildResponses).length < KBILD_QUESTIONS.length) { alert("Please answer all KBILD questions"); return; }
 
-    const newLog: HealthLog = {
-      id: Date.now().toString() + Math.random().toString().slice(2,6),
+    const newLogData: HealthLog = {
+      id: editingLogId || Date.now().toString() + Math.random().toString().slice(2,6),
       date: selectedDateDisplay,
       time: formatTime12Hour(logTime),
       timestamp: Date.now(),
@@ -174,10 +199,22 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
       taken_medications: takenMeds,
       vas: vasScores,
       side_effects: selectedSideEffects,
-      alerts: alerts
+      alerts: alerts,
+      isEdited: editingLogId ? true : false
     };
 
-    onUpdatePatient({ ...patient, logs: [newLog, ...patient.logs] });
+    let updatedLogs = [...patient.logs];
+    if (editingLogId) {
+      updatedLogs = updatedLogs.map(l => l.id === editingLogId ? newLogData : l);
+    } else {
+      updatedLogs = [newLogData, ...updatedLogs];
+    }
+
+    onUpdatePatient({ ...patient, logs: updatedLogs });
+    if (editingLogId) {
+       setEditingLogId(null);
+       setIsFormOpen(false);
+    }
   };
 
   const activeMedications = (patient.medications || []).filter(m => {
@@ -223,26 +260,39 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
                 <div className="bg-yellow-300 p-4 rounded-lg text-center font-bold text-yellow-900 text-xl shadow-sm border border-yellow-400">
                    KBILD Total Score: {dailyLogs[0]?.kbild_score}
                 </div>
-                <div className="flex gap-2 justify-center pt-2">
-                   {canSubmitMore && (
-                     <button onClick={handleAddSecondEntry} className="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold hover:bg-teal-700 transition flex items-center justify-center gap-2 shadow-md">
-                       <PlusCircle size={18}/> Add Entry
+                <div className="flex flex-col gap-2 pt-2">
+                   {/* Edit Option */}
+                   {!dailyLogs[0].isEdited && (
+                     <button onClick={() => handleEditLog(dailyLogs[0])} className="flex-1 border border-blue-300 text-blue-700 py-3 rounded-xl font-bold hover:bg-blue-50 transition flex items-center justify-center gap-2">
+                        <Edit2 size={16}/> Edit Submission
                      </button>
                    )}
-                   <button onClick={()=>setActiveTab('history')} className="flex-1 border-2 border-blue-100 text-blue-600 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
-                     History
-                   </button>
+
+                   <div className="flex gap-2">
+                     {canSubmitMore && (
+                       <button onClick={handleAddSecondEntry} className="flex-1 bg-teal-600 text-white py-3 rounded-xl font-bold hover:bg-teal-700 transition flex items-center justify-center gap-2 shadow-md">
+                         <PlusCircle size={18}/> Add Entry
+                     </button>
+                   )}
+                     <button onClick={()=>setActiveTab('history')} className="flex-1 border-2 border-blue-100 text-blue-600 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
+                       History
+                     </button>
+                   </div>
                 </div>
              </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in">
              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-800">{submissionCount>0?"Second Entry":"Daily Check-in"}</h2>
-                {submissionCount > 0 && <button type="button" onClick={()=>setIsFormOpen(false)} className="text-sm text-gray-500 flex items-center gap-1"><ArrowLeft size={14}/> Cancel</button>}
+                <h2 className="text-xl font-bold text-gray-800">
+                  {editingLogId ? "Editing Log" : (submissionCount>0?"Second Entry":"Daily Check-in")}
+                </h2>
+                {(submissionCount > 0 || editingLogId) && (
+                  <button type="button" onClick={()=>{setIsFormOpen(false); setEditingLogId(null);}} className="text-sm text-gray-500 flex items-center gap-1"><ArrowLeft size={14}/> Cancel</button>
+                )}
              </div>
 
-             {selectedDate === getTodayISO() && (
+             {selectedDate === getTodayISO() && !editingLogId && (
                <div className="bg-white p-4 rounded-2xl border border-indigo-200 flex justify-between items-center shadow-sm">
                   <div className="flex items-center gap-2">
                     <CloudFog className="text-indigo-500"/>
@@ -252,24 +302,21 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
                </div>
              )}
 
-             {/* Vitals */}
-             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 border-pink-400 bg-pink-50 border-gray-100`}>
-               <h3 className="font-bold text-pink-600 mb-4 flex gap-2 text-lg"><HeartPulse/> Vitals</h3>
+             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 ${THEMES.VITALS.border} ${THEMES.VITALS.bg} border-gray-100`}>
+               <h3 className={`font-bold ${THEMES.VITALS.icon} mb-4 flex gap-2 text-lg`}><HeartPulse/> Vitals</h3>
                <div className="grid grid-cols-2 gap-4">
                  <div><label className="block text-sm font-semibold mb-1 text-gray-600">Rest (Max)</label><input type="number" required step="0.1" value={spo2Rest} onChange={e=>setSpo2Rest(e.target.value)} className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-pink-200 outline-none bg-white"/></div>
                  <div><label className="block text-sm font-semibold mb-1 text-gray-600">Exertion (Min)</label><input type="number" required step="0.1" value={spo2Exertion} onChange={e=>setSpo2Exertion(e.target.value)} className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-pink-200 outline-none bg-white"/></div>
                </div>
              </div>
 
-             {/* MMRC */}
-             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 border-blue-400 bg-blue-50 border-gray-100`}>
-               <h3 className="font-bold text-blue-600 mb-4 flex gap-2 text-lg"><Activity/> mMRC Grade</h3>
+             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 ${THEMES.MMRC.border} ${THEMES.MMRC.bg} border-gray-100`}>
+               <h3 className={`font-bold ${THEMES.MMRC.icon} mb-4 flex gap-2 text-lg`}><Activity/> mMRC Grade</h3>
                <div className="space-y-2">{MMRC_GRADES.map(g=>(<label key={g.value} className={`flex p-3 rounded-xl border cursor-pointer transition-all bg-white ${mmrc===g.value? 'ring-2 ring-blue-500 shadow-sm':'hover:bg-gray-50 border-gray-200'}`}><input type="radio" name="mmrc" value={g.value} checked={mmrc===g.value} onChange={e=>setMmrc(e.target.value)} className="mt-1"/><div className="ml-3"><p className="font-semibold text-sm text-gray-800">{g.en}</p><p className="text-xs text-gray-500">{g.hi}</p></div></label>))}</div>
              </div>
 
-             {/* Meds */}
-             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 border-purple-400 bg-purple-50 border-gray-100`}>
-               <h3 className="font-bold text-purple-600 mb-4 flex gap-2 text-lg"><Pill/> Medications</h3>
+             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 ${THEMES.MEDS.border} ${THEMES.MEDS.bg} border-gray-100`}>
+               <h3 className={`font-bold ${THEMES.MEDS.icon} mb-4 flex gap-2 text-lg`}><Pill/> Medications</h3>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                  {activeMedications.length===0 && <p className="text-gray-400 text-sm italic">No active meds for this date.</p>}
                  {activeMedications.map(m=>(<label key={m.name} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all bg-white ${takenMeds.includes(m.name)?'ring-2 ring-purple-400 bg-purple-50':'hover:bg-gray-50'}`}><input type="checkbox" checked={takenMeds.includes(m.name)} onChange={()=>{setTakenMeds(p=>p.includes(m.name)?p.filter(x=>x!==m.name):[...p,m.name])}} className="w-5 h-5 text-purple-600 rounded"/><span className="text-sm font-bold text-gray-700">{m.name}</span></label>))}
@@ -277,9 +324,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
                <div className="mt-6 border-t border-purple-200 pt-4"><p className="text-sm font-bold mb-3 text-gray-600">Side Effects</p><div className="flex flex-wrap gap-2">{SIDE_EFFECTS.map(e=>(<button key={e} type="button" onClick={()=>setSelectedSideEffects(p=>p.includes(e)?p.filter(x=>x!==e):[...p,e])} className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${selectedSideEffects.includes(e)?'bg-red-500 text-white shadow-md':'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'}`}>{e}</button>))}</div></div>
              </div>
 
-             {/* VAS - Colorful & Hindi */}
-             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 border-orange-400 bg-orange-50 border-gray-100`}>
-               <h3 className="font-bold text-orange-600 mb-6 flex gap-2 text-lg"><Thermometer/> Symptoms (1-10)</h3>
+             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 ${THEMES.VAS.border} ${THEMES.VAS.bg} border-gray-100`}>
+               <h3 className={`font-bold ${THEMES.VAS.icon} mb-6 flex gap-2 text-lg`}><Thermometer/> Symptoms (1-10)</h3>
                <div className="space-y-6">
                  {(Object.keys(vasScores) as Array<keyof HealthLog['vas']>).map(key => {
                    const colors = VAS_COLORS[key as string] || { label: 'text-gray-700', bg: 'accent-blue-500' };
@@ -306,18 +352,30 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
                </div>
              </div>
 
-             {/* KBILD - Hindi, Options, Score */}
-             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 border-yellow-400 bg-yellow-50 border-gray-100`}>
-               <h3 className="font-bold text-yellow-700 mb-4 flex gap-2 text-lg justify-between items-center">
+             <div className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 ${THEMES.KBILD.border} ${THEMES.KBILD.bg} border-gray-100`}>
+               <h3 className={`font-bold ${THEMES.KBILD.icon} mb-4 flex gap-2 text-lg justify-between items-center`}>
                  <span><Smile size={20}/> Quality of Life (KBILD)</span>
                  <span className="bg-yellow-300 text-yellow-900 px-4 py-2 rounded-full text-lg font-bold shadow-sm">Total: {currentKbildSum}</span>
                </h3>
                <div className="space-y-6">
-                 {KBILD_QUESTIONS.map(q=>(
+                 {KBILD_QUESTIONS.map(q => {
+                   // Logic to find previous response for this question
+                   const prevResponseVal = previousLog?.kbild_responses?.[String(q.id)]; // Changed to String cast
+                   
+                   return (
                    <div key={q.id} className="bg-white p-4 rounded-xl border border-yellow-200 shadow-sm">
                      <div className="mb-3">
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs mr-2 font-bold">Q{q.id}</span>
-                        <span className="font-bold text-sm text-gray-800">{q.textEn}</span>
+                        <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs mr-2 font-bold">Q{q.id}</span>
+                              <span className="font-bold text-sm text-gray-800">{q.textEn}</span>
+                            </div>
+                            {prevResponseVal && (
+                               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-bold whitespace-nowrap ml-2 border border-gray-300 shadow-sm">
+                                 (Last: {prevResponseVal})
+                               </span>
+                            )}
+                        </div>
                         <p className="text-xs text-gray-500 mt-1 ml-8 italic">{q.textHi}</p>
                      </div>
                      <div className="space-y-2 ml-2">
@@ -325,23 +383,30 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
                          <label key={opt.val} className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-colors ${kbildResponses[q.id]===opt.val ? 'bg-yellow-100 ring-1 ring-yellow-300' : 'hover:bg-gray-50'}`}>
                            <input type="radio" name={`kbild-${q.id}`} checked={kbildResponses[q.id]===opt.val} onChange={()=>setKbildResponses(p=>({...p,[q.id]:opt.val}))} className="text-yellow-600 focus:ring-yellow-500 w-4 h-4"/>
                            <div className="flex flex-col">
-                             <span className="text-sm text-gray-700 font-medium"><span className="font-bold mr-1">{opt.val}.</span> {opt.label}</span>
+                             <span className="text-sm text-gray-700 font-medium">
+                               <span className="font-bold mr-1">{opt.val}.</span> {opt.label}
+                               {prevResponseVal === opt.val && <span className="ml-2 text-xs font-bold text-blue-600 bg-blue-50 px-1 rounded">(Last Answer)</span>}
+                             </span>
                              <span className="text-xs text-gray-500 ml-4">({opt.labelHi})</span>
                            </div>
                          </label>
                        ))}
                      </div>
                    </div>
-                 ))}
+                 )})}
                </div>
              </div>
 
-             <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-teal-500 text-white py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all text-lg">Submit Log</button>
+             <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-teal-500 text-white py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all text-lg">
+               {editingLogId ? "Update Log" : "Submit Log"}
+             </button>
           </form>
         )}
       </div>
     );
   };
+
+  // ... (History and Trends tabs remain similar, ensuring they use updated types)
 
   const renderHistoryTab = () => (
     <div className="space-y-4 max-w-3xl mx-auto">
@@ -352,6 +417,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
              <div className="flex items-center gap-2 mb-1">
                <span className="font-bold text-gray-800 text-lg">{log.date}</span>
                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{log.time}</span>
+               {log.isEdited && <span className="text-[10px] text-orange-500 font-bold bg-orange-50 px-1 rounded">EDITED</span>}
              </div>
              <div className="text-sm text-gray-600 flex gap-4">
                 <span>SpO2: <strong className="text-blue-600">{log.spo2_rest}</strong></span>
@@ -364,6 +430,72 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
     </div>
   );
 
+  const renderTrendsTab = () => {
+    // Prepare data (chronological order)
+    const sortedLogs = [...patient.logs].sort((a, b) => a.timestamp - b.timestamp);
+    const chartData = sortedLogs.map(log => ({
+      date: log.date.slice(0, 5), // Just DD/MM
+      spo2_rest: log.spo2_rest,
+      spo2_exertion: log.spo2_exertion,
+      kbild: log.kbild_score,
+      symptomScore: log.vas[selectedSymptomTrend as keyof typeof log.vas] || 0
+    }));
+
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+         <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2"><TrendingUp className="text-blue-500"/> Health Trends</h2>
+         
+         {/* SpO2 Chart */}
+         <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-100">
+            <h3 className="font-bold text-gray-700 mb-4">SpO2 Levels</h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                   <XAxis dataKey="date" stroke="#888" fontSize={12} />
+                   <YAxis domain={[80, 100]} stroke="#888" fontSize={12} />
+                   <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
+                   <Legend />
+                   <Line type="monotone" dataKey="spo2_rest" stroke="#10b981" name="Rest" strokeWidth={2} dot={{r:4}} />
+                   <Line type="monotone" dataKey="spo2_exertion" stroke="#ef4444" name="Exertion" strokeWidth={2} dot={{r:4}} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+         </div>
+
+         {/* Symptom Chart */}
+         <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-100">
+            <div className="flex justify-between items-center mb-4">
+               <h3 className="font-bold text-gray-700">Symptom Severity</h3>
+               <select 
+                 value={selectedSymptomTrend} 
+                 onChange={(e) => setSelectedSymptomTrend(e.target.value)}
+                 className="p-2 text-sm border rounded-lg bg-gray-50 text-gray-700 focus:ring-2 focus:ring-blue-200 outline-none"
+               >
+                  <option value="breathlessness">Breathlessness</option>
+                  <option value="cough">Cough</option>
+                  <option value="expectoration">Expectoration</option>
+                  <option value="chest_pain">Chest Pain</option>
+                  <option value="hemoptysis">Hemoptysis</option>
+                  <option value="fever">Fever</option>
+               </select>
+            </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                   <XAxis dataKey="date" stroke="#888" fontSize={12} />
+                   <YAxis domain={[0, 10]} stroke="#888" fontSize={12} />
+                   <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
+                   <Line type="monotone" dataKey="symptomScore" stroke="#8b5cf6" name="Score" strokeWidth={3} dot={{r:4, fill:'#8b5cf6'}} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+         </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 pb-10 font-sans">
       <header className="bg-white shadow-sm p-4 mb-6 sticky top-0 z-10">
@@ -372,7 +504,18 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
           <button onClick={onLogout} className="text-sm text-gray-500 hover:text-red-500 font-medium">Logout</button>
         </div>
       </header>
-      <main className="px-4">{activeTab === 'entry' ? renderEntryTab() : renderHistoryTab()}</main>
+      <main className="px-4">
+        {/* Tab Navigation */}
+        <div className="flex space-x-2 mb-6 max-w-3xl mx-auto bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
+           <button onClick={()=>setActiveTab('entry')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab==='entry'?'bg-blue-100 text-blue-700 shadow-sm':'text-gray-500 hover:bg-gray-50'}`}>Entry</button>
+           <button onClick={()=>setActiveTab('history')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab==='history'?'bg-blue-100 text-blue-700 shadow-sm':'text-gray-500 hover:bg-gray-50'}`}>History</button>
+           <button onClick={()=>setActiveTab('trends')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${activeTab==='trends'?'bg-blue-100 text-blue-700 shadow-sm':'text-gray-500 hover:bg-gray-50'}`}>Trends</button>
+        </div>
+
+        {activeTab === 'entry' && renderEntryTab()}
+        {activeTab === 'history' && renderHistoryTab()}
+        {activeTab === 'trends' && renderTrendsTab()}
+      </main>
     </div>
   );
 };
