@@ -949,21 +949,36 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
                      <th className="pb-2">FVC (L)</th> {/* New */}
                    </tr>
                  </thead>
-                 <tbody>
-                   {(patient.pftHistory || []).length === 0 && ( // Added || []
-                     <tr><td colSpan={6} className="py-4 text-center text-gray-400">No PFT records found.</td></tr> {/* Updated colspan */}
-                   )}
-                   {[...(patient.pftHistory || [])].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(pft => ( // Added || []
-                     <tr key={pft.id} className="border-b last:border-0 hover:bg-gray-50 transition">
-                       <td className="py-3 font-medium">{pft.date}</td>
-                       <td className="py-3 text-blue-600 font-bold">{pft.fev1_fvc}%</td>
-                       <td className="py-3 text-green-600 font-bold">{pft.fev1}%</td>
-                       <td className="py-3 text-green-700 font-bold">{pft.fev1_liters?.toFixed(2) || 'N/A'}</td> {/* New */}
-                       <td className="py-3 text-purple-600 font-bold">{pft.fvc}%</td>
-                       <td className="py-3 text-purple-700 font-bold">{pft.fvc_liters?.toFixed(2) || 'N/A'}</td> {/* New */}
-                     </tr>
-                   ))}
-                 </tbody>
+                <tbody>
+  {(patient.pftHistory || []).length === 0 && (
+    <>
+      {/* Updated colspan */}
+      <tr>
+        <td colSpan={6} className="py-4 text-center text-gray-400">
+          No PFT records found.
+        </td>
+      </tr>
+    </>
+  )}
+
+  {[...(patient.pftHistory || [])]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .map((pft) => (
+      <tr key={pft.id} className="border-b last:border-0 hover:bg-gray-50 transition">
+        <td className="py-3 font-medium">{pft.date}</td>
+        <td className="py-3 text-blue-600 font-bold">{pft.fev1_fvc}%</td>
+        <td className="py-3 text-green-600 font-bold">{pft.fev1}%</td>
+        <td className="py-3 text-green-700 font-bold">
+          {pft.fev1_liters?.toFixed(2) || 'N/A'}
+        </td>
+        <td className="py-3 text-purple-600 font-bold">{pft.fvc}%</td>
+        <td className="py-3 text-purple-700 font-bold">
+          {pft.fvc_liters?.toFixed(2) || 'N/A'}
+        </td>
+      </tr>
+    ))}
+</tbody>
+
                </table>
              </div>
           </div>
@@ -1060,48 +1075,89 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-               {getFilteredPatients().map(p => { // This call now gets all patients (filtered by search term and display category, sorted by date)
-                 const categoryStyle = DIAGNOSIS_CATEGORY_STYLES[p.diagnosisCategory] || DIAGNOSIS_CATEGORY_STYLES[PRIMARY_DIAGNOSIS_CATEGORIES[0]]; // Default to ILD
-                 const shortCategoryName = getShortCategoryName(p.diagnosisCategory);
-                 return (
-                 <div key={p.id} onClick={()=>{setSelectedPatientId(p.id);setView('detail')}} className={`bg-white p-5 rounded-2xl shadow-sm hover:shadow-xl transition-all cursor-pointer border-l-4 ${categoryStyle?.borderColor || 'border-blue-300'} group relative overflow-hidden hover:-translate-y-1 duration-300`}>
-                    <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${categoryStyle?.bgColor || 'from-blue-100 to-indigo-100'} rounded-bl-full -mr-4 -mt-4 opacity-50 transition-transform group-hover:scale-110`}></div>
-                    
-                    <div className="relative z-10">
-                      <div className="flex justify-between items-start mb-3">
-                         <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-white to-gray-50 border ${categoryStyle?.borderColor || 'border-blue-100'} flex items-center justify-center ${categoryStyle?.tagColor.split(' ')[0] || 'text-blue-600'} font-bold text-xl shadow-sm`}>
-                            {p.name.charAt(0).toUpperCase()}
-                         </div>
-                         <button 
-                            onClick={(e)=>{
-                              e.stopPropagation(); 
-                              if(window.confirm(`Are you sure you want to delete ${p.name}?`)) onDeletePatient(p.id);
-                            }} 
-                            className="text-slate-300 hover:text-red-500 p-2 transition-colors hover:bg-red-50 rounded-full"
-                            title="Delete Patient"
-                          >
-                            <Trash2 size={18}/>
-                          </button>
-                      </div>
-                      
-                      <h3 className="font-bold text-lg text-slate-800 mb-1 capitalize truncate pr-2">{p.name}</h3>
-                      
-                      <div className="mb-2">
-                         <span className={`text-sm font-semibold ${categoryStyle?.tagColor || 'text-blue-700 bg-blue-50 border-blue-100'} px-2 py-1 rounded-md border inline-block max-w-full truncate`}>
-                           {shortCategoryName} / {p.diagnosis}
-                         </span>
-                      </div>
+  {getFilteredPatients().map((p) => {
+    const categoryStyle =
+      DIAGNOSIS_CATEGORY_STYLES[p.diagnosisCategory] ||
+      DIAGNOSIS_CATEGORY_STYLES[PRIMARY_DIAGNOSIS_CATEGORIES[0]];
 
-                      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 border-t border-slate-100 pt-3 mt-2">
-                        <span className="flex items-center gap-1"><Users size={12}/> {p.sex}</span>
-                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                        <span>{p.age} Years</span>
-                        <span className="ml-auto text-slate-400">ID: {p.id.slice(-4)}</span>
-                      </div>
-                    </div>
-                 </div>
-               ))}
+    const shortCategoryName = getShortCategoryName(p.diagnosisCategory);
+
+    return (
+      <div
+        key={p.id}
+        onClick={() => {
+          setSelectedPatientId(p.id);
+          setView("detail");
+        }}
+        className={`bg-white p-5 rounded-2xl shadow-sm hover:shadow-xl transition-all cursor-pointer border-l-4 ${
+          categoryStyle?.borderColor || "border-blue-300"
+        } group relative overflow-hidden hover:-translate-y-1 duration-300`}
+      >
+        <div
+          className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${
+            categoryStyle?.bgColor ||
+            "from-blue-100 to-indigo-100"
+          } rounded-bl-full -mr-4 -mt-4 opacity-50 transition-transform group-hover:scale-110`}
+        ></div>
+
+        <div className="relative z-10">
+          <div className="flex justify-between items-start mb-3">
+            <div
+              className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-white to-gray-50 border ${
+                categoryStyle?.borderColor || "border-blue-100"
+              } flex items-center justify-center ${
+                categoryStyle?.tagColor?.split(" ")[0] || "text-blue-600"
+              } font-bold text-xl shadow-sm`}
+            >
+              {p.name.charAt(0).toUpperCase()}
             </div>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (
+                  window.confirm(
+                    `Are you sure you want to delete ${p.name}?`
+                  )
+                ) {
+                  onDeletePatient(p.id);
+                }
+              }}
+              className="text-slate-300 hover:text-red-500 p-2 transition-colors hover:bg-red-50 rounded-full"
+              title="Delete Patient"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
+
+          <h3 className="font-bold text-lg text-slate-800 mb-1 capitalize truncate pr-2">
+            {p.name}
+          </h3>
+
+          <div className="mb-2">
+            <span
+              className={`text-sm font-semibold ${
+                categoryStyle?.tagColor ||
+                "text-blue-700 bg-blue-50 border-blue-100"
+              } px-2 py-1 rounded-md border inline-block max-w-full truncate`}
+            >
+              {shortCategoryName} / {p.diagnosis}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-500 border-t border-slate-100 pt-3 mt-2">
+            <span className="flex items-center gap-1">
+              <Users size={12} /> {p.sex}
+            </span>
+            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+            <span>{p.age} Years</span>
+            <span className="ml-auto text-slate-400">ID: {p.id.slice(-4)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  })}
+</div>
 
             {/* Button to toggle Export Options */}
             <div className="mt-8 text-center">

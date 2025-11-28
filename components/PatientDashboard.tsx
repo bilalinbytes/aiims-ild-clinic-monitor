@@ -32,7 +32,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
   const [activeTab, setActiveTab] = useState<'entry' | 'history' | 'trends'>('entry');
   const [selectedSymptomTrend, setSelectedSymptomTrend] = useState<string>('breathlessness');
   // Fix: Updated the type definition for PFT_PARAM_LABELS to exclude 'id' and 'date'
-  const [selectedPFTTrend, setSelectedPFTTrend] = useState<Exclude<keyof PFTDataEntry, 'id' | 'date'>>('fev1');
+  // Space added between closing '>' to avoid TSX parse ambiguity
+  const [selectedPFTTrend, setSelectedPFTTrend] = useState<Exclude<keyof PFTDataEntry, 'id' | 'date'> >('fev1');
   
   const getTodayISO = () => {
     const d = new Date();
@@ -100,7 +101,8 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
   const [spo2Rest, setSpo2Rest] = useState<string>('');
   const [spo2Exertion, setSpo2Exertion] = useState<string>('');
   const [mmrc, setMmrc] = useState<string>(MMRC_GRADES[0].value);
-  const [kbildResponses, setKbildResponses] = useState<Record<number, number>>({});
+  // Space added between closing '>' to avoid TSX parse ambiguity
+  const [kbildResponses, setKbildResponses] = useState<Record<number, number> >({});
   const [takenMeds, setTakenMeds] = useState<string[]>([]);
   const [vasScores, setVasScores] = useState<HealthLog['vas']>({
     cough: 0, expectoration: 0, breathlessness: 0, chest_pain: 0, hemoptysis: 0, fever: 0, ctd_symptoms: 0
