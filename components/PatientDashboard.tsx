@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Patient, HealthLog } from '../types';
+import { Patient, HealthLog, PFTDataEntry } from '../types';
 import { KBILD_QUESTIONS, MMRC_GRADES, SIDE_EFFECTS, KBILD_OPTIONS, SYMPTOMS_HINDI } from '../constants';
 import { AlertTriangle, CheckCircle, History, Activity, HeartPulse, Pill, Thermometer, Smile, CloudFog, Calendar, RotateCw, PlusCircle, Clock, ArrowLeft, TrendingUp, Edit2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -31,6 +31,8 @@ const THEMES = {
 const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePatient, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'entry' | 'history' | 'trends'>('entry');
   const [selectedSymptomTrend, setSelectedSymptomTrend] = useState<string>('breathlessness');
+  // Fix: Updated the type definition for PFT_PARAM_LABELS to exclude 'id' and 'date'
+  const [selectedPFTTrend, setSelectedPFTTrend] = useState<Exclude<keyof PFTDataEntry, 'id' | 'date'>>('fev1');
   
   const getTodayISO = () => {
     const d = new Date();
@@ -140,13 +142,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
     setEditingLogId(null);
   };
 
-  const handleVasChange = (key: keyof HealthLog['vas'], value: string) => {
-    setVasScores(prev => ({
-      ...prev,
-      [key]: Number(value)
-    }));
-  };
-
   const handleAddSecondEntry = () => {
     resetForm();
     setIsFormOpen(true);
@@ -228,6 +223,11 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
     if(aqi<=100) return 'bg-yellow-100 text-yellow-800';
     if(aqi<=150) return 'bg-orange-100 text-orange-800';
     return 'bg-red-100 text-red-800';
+  };
+
+  // Fix: Defined handleVasChange function
+  const handleVasChange = (key: keyof HealthLog['vas'], value: string) => {
+    setVasScores(prev => ({ ...prev, [key]: Number(value) }));
   };
 
   const renderEntryTab = () => {
@@ -406,8 +406,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
     );
   };
 
-  // ... (History and Trends tabs remain similar, ensuring they use updated types)
-
   const renderHistoryTab = () => (
     <div className="space-y-4 max-w-3xl mx-auto">
       {patient.logs.length === 0 && <p className="text-center text-gray-400 py-10">No history found.</p>}
@@ -430,6 +428,19 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
     </div>
   );
 
+  // Fix: Updated the type definition for PFT_PARAM_LABELS to exclude 'id' and 'date'
+  const PFT_PARAM_LABELS: Record<Exclude<keyof PFTDataEntry, 'id' | 'date'>, string> = {
+    fev1_fvc: 'FEV1/FVC Ratio',
+    fev1: 'FEV1 (% Predicted)',
+    fev1_liters: 'FEV1 (Liters)', // New
+    fvc: 'FVC (% Predicted)',
+    fvc_liters: 'FVC (Liters)', // New
+    dlco: 'DLCO (% Predicted)',
+    six_mwd: '6MWD (meters)',
+    min_spo2: 'Min SpO2 (6MWD)',
+    max_spo2: 'Max SpO2 (6MWD)',
+  };
+
   const renderTrendsTab = () => {
     // Prepare data (chronological order)
     const sortedLogs = [...patient.logs].sort((a, b) => a.timestamp - b.timestamp);
@@ -439,6 +450,21 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
       spo2_exertion: log.spo2_exertion,
       kbild: log.kbild_score,
       symptomScore: log.vas[selectedSymptomTrend as keyof typeof log.vas] || 0
+    }));
+
+    const sortedPftHistory = [...patient.pftHistory].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const pftChartData = sortedPftHistory.map(pft => ({
+      date: formatDateToDisplay(pft.date).slice(0,5), // DD/MM
+      // Ensure that if the new fields are undefined, they default to 0 for charting
+      fev1_fvc: pft.fev1_fvc,
+      fev1: pft.fev1,
+      fev1_liters: pft.fev1_liters || 0,
+      fvc: pft.fvc,
+      fvc_liters: pft.fvc_liters || 0,
+      dlco: pft.dlco,
+      six_mwd: pft.six_mwd,
+      min_spo2: pft.min_spo2,
+      max_spo2: pft.max_spo2,
     }));
 
     return (
@@ -492,6 +518,33 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
               </ResponsiveContainer>
             </div>
          </div>
+
+         {/* PFT Trends Chart */}
+         <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-100">
+            <div className="flex justify-between items-center mb-4">
+               <h3 className="font-bold text-gray-700">PFT Trends</h3>
+               <select 
+                 value={selectedPFTTrend} 
+                 onChange={(e) => setSelectedPFTTrend(e.target.value as keyof PFTDataEntry)}
+                 className="p-2 text-sm border rounded-lg bg-gray-50 text-gray-700 focus:ring-2 focus:ring-blue-200 outline-none"
+               >
+                  {Object.entries(PFT_PARAM_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                  ))}
+               </select>
+            </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={pftChartData}>
+                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                   <XAxis dataKey="date" stroke="#888" fontSize={12} />
+                   <YAxis stroke="#888" fontSize={12} />
+                   <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
+                   <Line type="monotone" dataKey={selectedPFTTrend} stroke="#06b6d4" name={PFT_PARAM_LABELS[selectedPFTTrend]} strokeWidth={3} dot={{r:4, fill:'#06b6d4'}} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+         </div>
       </div>
     );
   };
@@ -500,7 +553,12 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ patient, onUpdatePa
     <div className="min-h-screen bg-slate-50 pb-10 font-sans">
       <header className="bg-white shadow-sm p-4 mb-6 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2"><HeartPulse className="text-teal-500"/> {patient.name}</h1>
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2"><HeartPulse className="text-teal-500"/> {patient.name}</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              <span className="font-bold text-gray-700">Diagnosis:</span> {patient.diagnosisCategory.replace(' (ILD)', '').replace(' (OAD)', '').replace(' (Bronchiectasis)', '')} / {patient.diagnosis}
+            </p>
+          </div>
           <button onClick={onLogout} className="text-sm text-gray-500 hover:text-red-500 font-medium">Logout</button>
         </div>
       </header>

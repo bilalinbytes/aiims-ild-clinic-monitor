@@ -1,4 +1,5 @@
 
+
 export type Role = 'doctor' | 'patient' | null;
 
 export interface Medication {
@@ -40,14 +41,18 @@ export interface HealthLog {
   isEdited?: boolean; // Track if log has been edited
 }
 
-export interface PFTData {
-  fev1_fvc: number;
-  fev1: number;
-  fvc: number;
-  dlco: number;
-  six_mwd: number;
-  min_spo2: number;
-  max_spo2: number;
+export interface PFTDataEntry {
+  id: string; // Unique ID for each PFT entry
+  date: string; // YYYY-MM-DD
+  fev1_fvc: number; // FEV1/FVC Ratio
+  fev1: number; // FEV1 (% Predicted)
+  fev1_liters?: number; // New: FEV1 (Absolute Liters)
+  fvc: number; // FVC (% Predicted)
+  fvc_liters?: number; // New: FVC (Absolute Liters)
+  dlco: number; // DLCO (% Predicted)
+  six_mwd: number; // 6MWD (meters)
+  min_spo2: number; // Min SpO2 during 6MWD
+  max_spo2: number; // Max SpO2 during 6MWD
 }
 
 export interface Patient {
@@ -56,7 +61,10 @@ export interface Patient {
   age: number;
   sex: 'Male' | 'Female' | 'Other';
   occupation: string;
-  diagnosis: string;
+  
+  diagnosisCategory: string; // New Field: ILD, OAD, Bronchiectasis
+  diagnosis: string; // Specific Subtype
+  
   ctdType?: string; // Optional, only if diagnosis is CTD-ILD
   sarcoidosisStage?: string; // Optional, only if diagnosis is Sarcoidosis
   fibroticIld?: 'Yes' | 'No';
@@ -65,7 +73,7 @@ export interface Patient {
   registrationDate: string;
   medications: Medication[];
   logs: HealthLog[];
-  pft: PFTData;
+  pftHistory: PFTDataEntry[]; // Changed from pft: PFTData
 }
 
 export interface KBILDQuestion {

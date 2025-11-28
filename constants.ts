@@ -1,7 +1,13 @@
 
 import { KBILDQuestion } from './types';
 
-export const DIAGNOSIS_LIST = [
+export const PRIMARY_DIAGNOSIS_CATEGORIES = [
+  "Interstitial Lung Disease (ILD)",
+  "Obstructive Airway Disease (OAD)",
+  "Bronchiectasis"
+];
+
+export const ILD_SUBTYPES = [
   "Idiopathic pulmonary fibrosis",
   "Hypersensitivity pneumonitis",
   "Idiopathic NSIP",
@@ -19,6 +25,26 @@ export const DIAGNOSIS_LIST = [
   "LAM",
   "Eosinophilic pneumonia"
 ];
+
+export const OAD_SUBTYPES = [
+  "COPD",
+  "Asthma",
+  "Asthma-COPD Overlap (ACO)",
+  "Bronchiolitis Obliterans",
+  "Other OAD"
+];
+
+export const BRONCHIECTASIS_SUBTYPES = [
+  "Post-infectious",
+  "Cystic Fibrosis related",
+  "ABPA related",
+  "Primary Ciliary Dyskinesia",
+  "Idiopathic",
+  "Other"
+];
+
+// Backward compatibility alias, defaults to ILD list
+export const DIAGNOSIS_LIST = ILD_SUBTYPES;
 
 export const CTD_TYPES = [
   "Scleroderma",
@@ -112,7 +138,7 @@ export const SYMPTOMS_HINDI: Record<string, string> = {
 export const KBILD_OPTIONS = {
   frequency_1: [
     { val: 1, label: "Every time", labelHi: "हर बार" },
-    { val: 2, label: "Most times", labelHi: "अधिकांश समय" },
+    { val: 2, label: "Most times", labelHi: " अधिकांश समय" },
     { val: 3, label: "Several times", labelHi: "बहुत बार" },
     { val: 4, label: "Some times", labelHi: "कभी-कभी" },
     { val: 5, label: "Occasionally", labelHi: "कभी न कभी" },
