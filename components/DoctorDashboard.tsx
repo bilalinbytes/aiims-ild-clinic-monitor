@@ -64,6 +64,12 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
   const [exportFromDate, setExportFromDate] = useState<string>('');
   const [exportToDate, setExportToDate] = useState<string>('');
   const [showExportOptions, setShowExportOptions] = useState(false); // New state for export options visibility
+  
+  // Moved selectedPFTTrend state to the top-level component
+  const [selectedPFTTrend, setSelectedPFTTrend] = useState<Exclude<keyof PFTDataEntry, 'id' | 'date'>>('fev1');
+  // New state for selected symptom trend in detail view
+  const [selectedSymptomTrend, setSelectedSymptomTrend] = useState<string>('breathlessness');
+
 
   const getTodayISO = () => {
     const d = new Date();
@@ -832,16 +838,16 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
       return dateA - dateB;
     });
 
-    const chartData = sortedLogs.map(log => ({ 
-      date: log.date.slice(0,5), 
-      spo2_rest: log.spo2_rest, 
-      spo2_exertion: log.spo2_exertion, 
+    const chartData = sortedLogs.map(log => ({
+      date: log.date.slice(0, 5), // Just DD/MM
+      spo2_rest: log.spo2_rest,
+      spo2_exertion: log.spo2_exertion,
       kbild: log.kbild_score,
+      symptomScore: log.vas[selectedSymptomTrend as keyof typeof log.vas] || 0
     }));
 
     const sortedPftHistory = [...(patient.pftHistory || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Added || []
-    // Fix: Updated the type definition for PFT_PARAM_LABELS to exclude 'id' and 'date'
-    const [selectedPFTTrend, setSelectedPFTTrend] = useState<Exclude<keyof PFTDataEntry, 'id' | 'date'>>('fev1');
+    
     const pftChartData = sortedPftHistory.map(pft => ({
       date: pft.date, // YYYY-MM-DD
       // Ensure that if the new fields are undefined, they default to 0 for charting
@@ -890,6 +896,11 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
                        <span className="font-semibold">Co-morbidities:</span> {patient.coMorbidities.map(c => c === 'Others' && patient.otherCoMorbidity ? `Others: ${patient.otherCoMorbidity}` : c).join(', ')}
                      </div>
                    )}
+                   {/* NEW: Log and PFT counts here */}
+                   <div className="mt-4 text-sm text-gray-700">
+                      <span className="font-semibold mr-4">Total Logs: <span className="font-bold text-blue-600">{patient.logs?.length || 0}</span></span>
+                      <span className="font-semibold">Total PFTs: <span className="font-bold text-green-600">{patient.pftHistory?.length || 0}</span></span>
+                   </div>
                 </div>
                 <div className="flex items-center gap-2"> {/* New div for buttons */}
                   <button 
@@ -949,7 +960,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
                      <th className="pb-2">FVC (L)</th> {/* New */}
                    </tr>
                  </thead>
-                <tbody>
+                 <tbody>
   {(patient.pftHistory || []).length === 0 && (
     <>
       {/* Updated colspan */}
@@ -964,16 +975,24 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
   {[...(patient.pftHistory || [])]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .map((pft) => (
-      <tr key={pft.id} className="border-b last:border-0 hover:bg-gray-50 transition">
+      <tr
+        key={pft.id}
+        className="border-b last:border-0 hover:bg-gray-50 transition"
+      >
         <td className="py-3 font-medium">{pft.date}</td>
         <td className="py-3 text-blue-600 font-bold">{pft.fev1_fvc}%</td>
         <td className="py-3 text-green-600 font-bold">{pft.fev1}%</td>
+
+        {/* New */}
         <td className="py-3 text-green-700 font-bold">
-          {pft.fev1_liters?.toFixed(2) || 'N/A'}
+          {pft.fev1_liters?.toFixed(2) || "N/A"}
         </td>
+
         <td className="py-3 text-purple-600 font-bold">{pft.fvc}%</td>
+
+        {/* New */}
         <td className="py-3 text-purple-700 font-bold">
-          {pft.fvc_liters?.toFixed(2) || 'N/A'}
+          {pft.fvc_liters?.toFixed(2) || "N/A"}
         </td>
       </tr>
     ))}
@@ -984,36 +1003,118 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
           </div>
         </div>
 
-        {/* PFT Trends Chart for Doctor Dashboard */}
-        <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-100 mb-6">
-            <div className="flex justify-between items-center mb-4">
-               <h3 className="text-xl font-bold text-gray-700 flex items-center gap-2"><TrendingUp className="text-blue-500"/> PFT Trends</h3>
-               <select 
-                 value={selectedPFTTrend} 
-                 onChange={(e) => setSelectedPFTTrend(e.target.value as keyof PFTDataEntry)}
-                 className="p-2 text-sm border rounded-lg bg-gray-50 text-gray-700 focus:ring-2 focus:ring-blue-200 outline-none"
-               >
-                  {Object.entries(PFT_PARAM_LABELS).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                  ))}
-               </select>
-            </div>
-            {sortedPftHistory.length > 1 ? (
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={pftChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" stroke="#888" fontSize={12} />
-                    <YAxis stroke="#888" fontSize={12} />
-                    <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
-                    <Line type="monotone" dataKey={selectedPFTTrend} stroke="#06b6d4" name={PFT_PARAM_LABELS[selectedPFTTrend]} strokeWidth={3} dot={{r:4, fill:'#06b6d4'}} />
-                  </LineChart>
-                </ResponsiveContainer>
+        {/* All Trends Section */}
+        <div className="space-y-6 mb-6">
+          <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><TrendingUp className="text-blue-500"/> Patient Trends</h3>
+
+          {/* SpO2 Chart */}
+          <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-100">
+              <h3 className="font-bold text-gray-700 mb-4">SpO2 Levels</h3>
+              {sortedLogs.length > 1 ? (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="date" stroke="#888" fontSize={12} />
+                      <YAxis domain={[80, 100]} stroke="#888" fontSize={12} />
+                      <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
+                      <Legend />
+                      <Line type="monotone" dataKey="spo2_rest" stroke="#10b981" name="Rest" strokeWidth={2} dot={{r:4}} />
+                      <Line type="monotone" dataKey="spo2_exertion" stroke="#ef4444" name="Exertion" strokeWidth={2} dot={{r:4}} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 py-10">Not enough log data to show SpO2 trends (at least 2 entries needed).</p>
+              )}
+          </div>
+
+          {/* KBILD Total Score Chart */}
+          <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-100">
+              <h3 className="font-bold text-gray-700 mb-4">Quality of Life (KBILD) Score</h3>
+              {sortedLogs.length > 1 ? (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="date" stroke="#888" fontSize={12} />
+                      <YAxis domain={[0, 105]} stroke="#888" fontSize={12} /> {/* KBILD scores are up to 105 */}
+                      <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
+                      <Line type="monotone" dataKey="kbild" stroke="#fbbd23" name="KBILD Score" strokeWidth={3} dot={{r:4, fill:'#fbbd23'}} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 py-10">Not enough log data to show KBILD score trends (at least 2 entries needed).</p>
+              )}
+          </div>
+
+          {/* Symptom Severity Chart */}
+          <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-100">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-gray-700">Symptom Severity</h3>
+                <select 
+                  value={selectedSymptomTrend} 
+                  onChange={(e) => setSelectedSymptomTrend(e.target.value)}
+                  className="p-2 text-sm border rounded-lg bg-gray-50 text-gray-700 focus:ring-2 focus:ring-blue-200 outline-none"
+                >
+                   <option value="breathlessness">Breathlessness</option>
+                   <option value="cough">Cough</option>
+                   <option value="expectoration">Expectoration</option>
+                   <option value="chest_pain">Chest Pain</option>
+                   <option value="hemoptysis">Hemoptysis</option>
+                   <option value="fever">Fever</option>
+                   <option value="ctd_symptoms">CTD Symptoms</option>
+                </select>
               </div>
-            ) : (
-              <p className="text-center text-gray-400 py-10">Not enough PFT data to show trends (at least 2 entries needed).</p>
-            )}
-         </div>
+              {sortedLogs.length > 1 ? (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="date" stroke="#888" fontSize={12} />
+                      <YAxis domain={[0, 10]} stroke="#888" fontSize={12} />
+                      <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
+                      <Line type="monotone" dataKey="symptomScore" stroke="#8b5cf6" name="Score" strokeWidth={3} dot={{r:4, fill:'#8b5cf6'}} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 py-10">Not enough log data to show symptom trends (at least 2 entries needed).</p>
+              )}
+          </div>
+
+          {/* PFT Trends Chart */}
+          <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-100 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="font-bold text-gray-700">PFT Trends</h3>
+                 <select 
+                   value={selectedPFTTrend} 
+                   onChange={(e) => setSelectedPFTTrend(e.target.value as keyof PFTDataEntry)}
+                   className="p-2 text-sm border rounded-lg bg-gray-50 text-gray-700 focus:ring-2 focus:ring-blue-200 outline-none"
+                 >
+                    {Object.entries(PFT_PARAM_LABELS).map(([key, label]) => (
+                        <option key={key} value={key}>{label}</option>
+                    ))}
+                 </select>
+              </div>
+              {sortedPftHistory.length > 1 ? (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={pftChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="date" stroke="#888" fontSize={12} />
+                      <YAxis stroke="#888" fontSize={12} />
+                      <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}/>
+                      <Line type="monotone" dataKey={selectedPFTTrend} stroke="#06b6d4" name={PFT_PARAM_LABELS[selectedPFTTrend]} strokeWidth={3} dot={{r:4, fill:'#06b6d4'}} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 py-10">Not enough PFT data to show trends (at least 2 entries needed).</p>
+              )}
+           </div>
+        </div>
 
       </div>
     );
@@ -1074,8 +1175,8 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
                </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-  {getFilteredPatients().map((p) => {
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+  {getFilteredPatients().map(p => { 
     const categoryStyle =
       DIAGNOSIS_CATEGORY_STYLES[p.diagnosisCategory] ||
       DIAGNOSIS_CATEGORY_STYLES[PRIMARY_DIAGNOSIS_CATEGORIES[0]];
@@ -1087,16 +1188,15 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
         key={p.id}
         onClick={() => {
           setSelectedPatientId(p.id);
-          setView("detail");
+          setView('detail');
         }}
         className={`bg-white p-5 rounded-2xl shadow-sm hover:shadow-xl transition-all cursor-pointer border-l-4 ${
-          categoryStyle?.borderColor || "border-blue-300"
+          categoryStyle?.borderColor || 'border-blue-300'
         } group relative overflow-hidden hover:-translate-y-1 duration-300`}
       >
         <div
           className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${
-            categoryStyle?.bgColor ||
-            "from-blue-100 to-indigo-100"
+            categoryStyle?.bgColor || 'from-blue-100 to-indigo-100'
           } rounded-bl-full -mr-4 -mt-4 opacity-50 transition-transform group-hover:scale-110`}
         ></div>
 
@@ -1104,24 +1204,19 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
           <div className="flex justify-between items-start mb-3">
             <div
               className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-white to-gray-50 border ${
-                categoryStyle?.borderColor || "border-blue-100"
+                categoryStyle?.borderColor || 'border-blue-100'
               } flex items-center justify-center ${
-                categoryStyle?.tagColor?.split(" ")[0] || "text-blue-600"
+                categoryStyle?.tagColor.split(' ')[0] || 'text-blue-600'
               } font-bold text-xl shadow-sm`}
             >
               {p.name.charAt(0).toUpperCase()}
             </div>
 
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
-                if (
-                  window.confirm(
-                    `Are you sure you want to delete ${p.name}?`
-                  )
-                ) {
+                if (window.confirm(`Are you sure you want to delete ${p.name}?`))
                   onDeletePatient(p.id);
-                }
               }}
               className="text-slate-300 hover:text-red-500 p-2 transition-colors hover:bg-red-50 rounded-full"
               title="Delete Patient"
@@ -1138,7 +1233,7 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ patients, onAddPatien
             <span
               className={`text-sm font-semibold ${
                 categoryStyle?.tagColor ||
-                "text-blue-700 bg-blue-50 border-blue-100"
+                'text-blue-700 bg-blue-50 border-blue-100'
               } px-2 py-1 rounded-md border inline-block max-w-full truncate`}
             >
               {shortCategoryName} / {p.diagnosis}
